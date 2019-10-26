@@ -1,0 +1,127 @@
+#!/usr/bin/python3
+
+import cgitb
+cgitb.enable()
+
+import cgi
+import passwords
+import MySQLdb
+import os
+import json
+import re
+
+form = cgi.FieldStorage()
+
+person_id = form.getvalue('person_id')
+last_name = form.getvalue('last_name')
+first_name = form.getvalue('first_name')
+age = form.getvalue('age')
+weight = form.getvalue('weight')
+height = form.getvalue('height')
+id = form.getvalue('id')
+
+
+conn = MySQLdb.connect(host   = passwords.SQL_HOST,
+                        user   = passwords.SQL_USER,
+                        passwd = passwords.SQL_PASSWD,
+                        db     = "your_name_here")
+
+cursor = conn.cursor()
+
+
+
+try:
+	path = os.environ['PATH_INFO']
+
+
+	if(path == "/"):
+		print("Status: 302 Redirect")
+		print("Location: http://ec2-3-95-33-206.compute-1.amazonaws.com/cgi-bin/db_dynamic")
+		print()
+		print("the redirect has failed")
+
+
+	if(path == "/my_file"):
+		print("Content-type: text/html\n\n")
+		print("Status: 200 OK")
+		print()
+		print( "<html>")
+		print( "<head>")
+		print( "<title>MY FILE</title>")
+		print( "</head>")
+		print( "<body>")
+		print("<p>This is my file</p>")
+		print("</body>")
+		print("</html>")
+
+	if(path == "/json"):
+		print("Content-type: application/json")
+		print("Status: 200 OK")
+		print()
+
+		x = {
+		  "name": "Lauren",
+		  "age": 21,
+		  "city": "Tucson"
+		}
+
+		x_json = json.dumps(x, indent=2)
+		print(x_json)
+
+	x = re.search("/your_name_here*", path)
+	if(x):
+		if(len(path) > 15):
+			path = path[16:]
+			cursor.execute("SELECT * FROM Persons WHERE id = %s;", (path,))
+		else:
+			cursor.execute("SELECT * FROM Persons;")
+		if(len(form) == 0):
+			print("Content-type: application/json")
+			print("Status: 200 OK")
+			print()
+			results = cursor.fetchall()
+
+			d = []
+			d_fields = ["PersonID", "LastName", "FirstName", "id", "age", "weight", "height"]
+			for rec in results:
+				entry = {}
+				num = 0
+				for r in rec:
+					num = num % len(d_fields)
+					field = d_fields[num] 
+					entry[field] = r
+					num += 1
+				d.append(entry)
+
+			x_json = json.dumps(d,  indent=2)
+			print(x_json)
+
+		else:
+			x = cursor.execute("INSERT INTO Persons (PersonID, LastName, FirstName, id, age, weight, height) VALUES (%s, %s, %s, %s, %s, %s, %s);", (person_id, last_name, first_name, id, age, weight, height))
+			new_id = cursor.lastrowid
+			cursor.close()
+
+			conn.commit()
+			conn.close()
+
+			print("Status: 302 Redirect")
+
+			link = "Location: http://ec2-3-95-33-206.compute-1.amazonaws.com/cgi-bin/my_thing/your_name_here/" + str(new_id)
+			print(link)
+			print()
+
+except KeyError as e:
+	print("Content-type: text/html\n\n")
+	print("Status: 200 OK")
+
+	print( "<html>")
+	print( "<head>")
+	print( "<title>My Thing</title>")
+	print("<p>There is no path here</p>")
+
+	print( "</head>")
+	print( "<body>")
+
+
+	print("</body>")
+	print("</html>")
